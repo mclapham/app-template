@@ -1,22 +1,22 @@
 # The name of the application (no spaces)
-app_name: stringed_instruments
+app_name: ichnofossil guilds
 
 # A brief description of the app.
-description : Find all the proper nouns which have adjectives modifying them. Dump the nouns and the adjectives into a text file.
+description : Find trace fossil names that can be assigned to geological formations and produce a table marking
+presence or absence of five sediment reworking guilds in Macrostrat units.
 
 # Your first and last name
-user: Example User
+user: Matthew Clapham
 
 # Your email
-email: example.user@geodeepdive.org
+email: mclapham@ucsc.edu
 
 # The primary language the application is written in - will be used for installing dependencies
 # Current options are Python, R, and Go
-language: Python
+language: R
 
 # You can choose to specify a list of dictionaries, a list of terms, or both.
 # If both dictionaries and terms are provided, all terms in the dictionary PLUS
 # all listed terms will be used
-dictionaries: [instruments]
+dictionaries: [ichnofossils]
 
-terms: [theremin]

@@ -1,14 +1,34 @@
 library(stringr)
 library(dplyr)
+library(RPostgreSQL)
 
-#read sentences data file
-sentences <- read.table("sentences_nlp352", fill=T)
-#update column names
-colnames(sentences) <- c("doc_id", "sent_id", "word_num", "words", "pos", "nep", "lemmas", "relation", "parent")
+#read target trace fossils
+ichnofossils <- read.csv("https://docs.google.com/spreadsheets/d/1LpZIVmxdmE_5yDBZPcGn-Av7C-Xj98uESEf4tfTOadE/export?format=csv")
+
+#create a PostGres connection
+#loads the PostgreSQL driver
+drv <- dbDriver("PostgreSQL")
+
+#creates a connection to the postgres database
+#note that "con" will be used later in each connection to the database
+con <- dbConnect(drv, dbname = "ichnofossils",
+                 host = "localhost", port = 5432,
+                 user = "UNAME", password = "password123")
+
+#select sentences with target words
+target <- "regenerator"
+
+if (target %in% c("epifauna", "surficial", "biodiffuser", "conveyor", "regenerator")) {
+  target_vector <- ichnofossils$taxon_name[ichnofossils$reworking_mode == target]
+  target_string <- paste(target_vector, collapse="|")
+} else {target_string <- target}
+
+target_word <- paste("%(", target_string, ")%", sep="")
+
+target_sent <- dbGetQuery(con, paste("SELECT * FROM sentences_nlp352 WHERE words SIMILAR TO", target_word))
 
 #read rock units from Macrostrat
 rock_units <- read.csv("https://macrostrat.org/api/units?all&envclass=marine&format=csv&response=long")
-#marine_units <- rock_units[grep(" marine", rock_units$environ),]
 
 rock_units$Fm <- gsub(" Conglomerate", "", rock_units$Fm)
 rock_units$Fm <- gsub(" Quartzite", "", rock_units$Fm)
@@ -22,9 +42,7 @@ rock_units$Fm <- gsub(" Limestone", "", rock_units$Fm)
 #read time interval names
 time_intervals <- read.csv("https://paleobiodb.org/data1.2/intervals/list.txt?all_records")
 
-#read target trace fossils
-ichnofossils <- read.csv("https://docs.google.com/spreadsheets/d/1LpZIVmxdmE_5yDBZPcGn-Av7C-Xj98uESEf4tfTOadE/export?format=csv")
-
+#functions to extract stratigraphic units
 formation.extract <- function(sentence){
   
   #replace commas in words
@@ -56,9 +74,8 @@ formation.extract <- function(sentence){
   relation <- strsplit(testrelation1, ",")
   
   #create data frame 
-  try(
-    { 
-  parsed_sentence <- data.frame(words, pos, parent, relation)
+  try({
+    parsed_sentence <- data.frame(words, pos, parent, relation)
   colnames(parsed_sentence) <- c("words", "pos", "parent", "relation")
   
   #extract the formation names in these sentences
@@ -69,6 +86,7 @@ formation.extract <- function(sentence){
   #make the formation vector into a string to run through macrostrat
   paste(unique(formation_vector), collapse=" ")
   })
+  
 }
 
 member.extract <- function(sentence) {
@@ -102,9 +120,8 @@ member.extract <- function(sentence) {
   relation <- strsplit(testrelation1, ",")
   
   #create data frame 
-  try(
-    {
-  parsed_sentence <- data.frame(words, pos, parent, relation)
+  try({
+    parsed_sentence <- data.frame(words, pos, parent, relation)
   colnames(parsed_sentence) <- c("words", "pos", "parent", "relation")
   
   #extract the formation names in these sentences
@@ -114,17 +131,12 @@ member.extract <- function(sentence) {
   
   #make the formation vector into a string to run through macrostrat
   paste(unique(formation_vector), collapse=" ")
-    })
+  })
+  
 }
 
-target.select <- function(reworking_mode) {
-  
-  #select target trace fossils
-  target_word <- ichnofossils$taxon_name[ichnofossils$reworking_mode == reworking_mode]
-  
-  #select sentences containing target trace fossil name
-  target_sent <- sentences[grep(paste(target_word, collapse="|"), sentences$words), ]
-  
+
+#Main code to match trace fossils to units
   #clean up bad sentences
   target_sent <- filter(target_sent, pos != "" & parent != "" & relation != "")
   if (length(grep("[A-Za-z]", target_sent$parent)) > 0) {
@@ -170,9 +182,9 @@ target.select <- function(reworking_mode) {
     rock_summary1 <- rock_units %>% 
       group_by(Fm) %>% 
       summarize(t_age = mean(t_age), b_age=mean(b_age))
-
-    output_formations <- data.frame(rock_summary1, "NO")
-    colnames(output_formations) <- c("unit_name", "top_age", "bottom_age", "trace_fossil")
+    colnames(rock_summary1) <- c("unit_name", "top_age", "bottom_age")
+    
+    output_formations <- data.frame(rock_summary1, "trace_fossil" = "NO")
   }
   
   if (length(target_members_no_blank) > 0) {
@@ -196,23 +208,14 @@ target.select <- function(reworking_mode) {
     rock_summary2 <- rock_units %>% 
       group_by(Mbr) %>% 
       summarize(t_age = mean(t_age), b_age=mean(b_age))
-
-    output_members <- data.frame(rock_summary2, "NO")
-    colnames(output_members) <- c("unit_name", "top_age", "bottom_age", "trace_fossil")
+    colnames(rock_summary2) <- c("unit_name", "top_age", "bottom_age")
+    output_members <- data.frame(rock_summary2, "trace_fossil" = "NO")
   }
   
   total_outputs <- rbind(output_formations, output_members)
 
-  total_outputs %>% 
+  final_output <- total_outputs %>% 
     select(unit_name, top_age, bottom_age, trace_fossil) %>% 
     arrange(unit_name, desc(trace_fossil)) %>% 
     distinct(unit_name, .keep_all = TRUE)
-
-}
-
-targets <- c("epifauna", "surficial", "biodiffuser", "conveyor", "regenerator")
-
-trace_results <- sapply(targets, function(x) target.select(x))
-
-final_outputs <- data.frame(unit_name=trace_results[[1,1]], t_age=trace_results[[2,1]], b_age=trace_results[[3,1]], trace_results[4,])
 

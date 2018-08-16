@@ -16,7 +16,7 @@ con <- dbConnect(drv, dbname = "ichnofossils",
                  user = "UNAME", password = "password123")
 
 #select sentences with target words
-target <- "regenerator"
+target <- "Ophiomorpha"
 
 if (target %in% c("epifauna", "surficial", "biodiffuser", "conveyor", "regenerator")) {
   target_vector <- ichnofossils$taxon_name[ichnofossils$reworking_mode == target]

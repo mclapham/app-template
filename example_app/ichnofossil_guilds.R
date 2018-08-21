@@ -219,3 +219,4 @@ member.extract <- function(sentence) {
     arrange(unit_name, desc(trace_fossil)) %>% 
     distinct(unit_name, .keep_all = TRUE)
 
+ write.csv(final_output, "final_output.csv")

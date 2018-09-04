@@ -14,7 +14,7 @@ con <- dbConnect(drv, dbname = "ichnofossils",
                  user = "postgres", password = "password")
 
 #select sentences with target words
-target <- "regenerator"
+target <- "Ophiomorpha"
 
 #prepare text string of multiple target words for searching
 if (target %in% c("epifauna", "surficial", "biodiffuser", "conveyor", "regenerator")) {

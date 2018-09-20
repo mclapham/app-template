@@ -16,7 +16,7 @@ drv <- dbDriver("PostgreSQL")
 #note that "con" will be used later in each connection to the database
 con <- dbConnect(drv, dbname = "ichnofossils",
                  host = "localhost", port = 5432,
-                 user = "postgres", password = "pg_pass_47")
+                 user = "postgres", password = "password")
 
 #create empty table to store strat results; if table exists, drop and reinitialize
 dbExecute(con, "DROP TABLE if EXISTS stratresults")

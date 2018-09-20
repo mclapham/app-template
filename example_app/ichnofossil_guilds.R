@@ -191,3 +191,5 @@ for (i in 1:nrow(doc_ids)) {
 
 #Read final results back in from Postgres
 final_results <- dbGetQuery(con, "SELECT * FROM stratresults")
+
+write.csv(final_results, "regenerators.csv", row.names = FALSE)

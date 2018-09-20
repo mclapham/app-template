@@ -22,8 +22,22 @@ con <- dbConnect(drv, dbname = "ichnofossils",
 dbExecute(con, "DROP TABLE if EXISTS stratresults")
 dbExecute(con, "CREATE TABLE stratresults (docid TEXT, sentid INTEGER, strat_term TEXT, match_type TEXT, target_term TEXT)")
 
+#select sentences with target words
+target <- "regenerator"
+
+#prepare text string of multiple target words for searching
+if (target %in% c("epifauna", "surficial", "biodiffuser", "conveyor", "regenerator")) {
+  target_vector <- ichnofossils$taxon_name[ichnofossils$reworking_mode == target]
+  target_names <- paste(target_vector, collapse="|") #for grep use within R
+  target_string <- paste(target_vector, collapse="','")
+  target_names_postgres <- paste("['", target_string, "']", sep="") #for Postgresql queries
+} else {
+  target_names <- target #for grep use within R
+  target_names_postgres <- paste("['", target, "']", sep="") #for Postgresql
+}
+
 #select document id from sentences file
-doc_ids <- dbGetQuery(con, "SELECT DISTINCT docid FROM sentences")
+doc_ids <- dbGetQuery(con, paste("SELECT DISTINCT docid FROM sentences WHERE ARRAY", target_names_postgres, " && words", sep=""))
 
 #loop through all documents
 for (i in 1:nrow(doc_ids)) {
@@ -36,7 +50,6 @@ for (i in 1:nrow(doc_ids)) {
   #if at least one sentence contains a stratigraphic flag
   if (length(strat_sentences) > 0)
   {
-    
     #CLEAN UP DATA FILE
     #replace true commas in words results with word "comma"
     doc_sentences$words <- gsub(",\",\",\",\",", ",comma,comma,", doc_sentences$words) #even number of commas in a row
@@ -80,16 +93,6 @@ for (i in 1:nrow(doc_ids)) {
     
     #remove time interval names 
     fm_results$fm_string <- str_replace_all(as.character(fm_results$fm_string), paste(time_intervals$interval_name, collapse=" |"), "")
-    
-    #select sentences with target words
-    target <- "regenerator"
-    
-    #prepare text string of multiple target words for searching
-    if (target %in% c("epifauna", "surficial", "biodiffuser", "conveyor", "regenerator")) {
-      target_vector <- ichnofossils$taxon_name[ichnofossils$reworking_mode == target]
-      target_names <- paste(target_vector, collapse="|")
-    } else {target_names <- target}
-    
     
     #finds sentences containing target trace fossil
     target_sentences <- doc_sentences[grep(target_names, doc_sentences$words),]
@@ -149,18 +152,17 @@ for (i in 1:nrow(doc_ids)) {
       #add match type term
       third_matches <- data.frame(third_matches, match_type=rep("second", nrow(third_matches)))
       
-      #remove any hits before checking more distant sentences
-      target_sentences_nothird <- target_sentences_nosecond[!target_sentences_nosecond$sentid %in% (third_matches$sentid+3),]
-      
       #4. if a formation is superdominant in the paper, assume that the trace fossils come from it
       fm_counts <- table(fm_results$fm_string)
       fm_prop <- fm_counts/sum(fm_counts)
       
       #these are arbitrary choices (formation name in at least 20 sentences, and at least 60% of mentions)
-      if (length(which(fm_counts > 20 & fm_prop > 0.6)) > 0)
+      dominant_fm <- which(fm_counts > 20 & fm_prop > 0.6)
+            
+      if (length(dominant_fm) > 0)
       {
         dominance_matches <- data.frame(sentid = NA,
-                                        fm_string = names(which(fm_counts > 20 & fm_prop > 0.6)),
+                                        fm_string = names(dominant_fm),
                                         match_type = "dominance")
         
         fm_final <- rbind(exact_matches, partial_matches, previous_matches, second_matches, third_matches, dominance_matches)
@@ -189,5 +191,3 @@ for (i in 1:nrow(doc_ids)) {
 
 #Read final results back in from Postgres
 final_results <- dbGetQuery(con, "SELECT * FROM stratresults")
-
-write.csv(final_results, "regenerator.csv", row.names = FALSE)

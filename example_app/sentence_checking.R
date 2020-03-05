@@ -16,8 +16,10 @@ con <- dbConnect(drv, dbname = "ichnofossils",
 #select documents with target words
 docs <- unique(sentences_to_check$docid)
 
-#create empty vector to store sentence strings
-sentence_text <- character(0)
+#create empty data frame to store sentence strings
+sentence_text <- data.frame(docid = character(0),
+                            sentid = numeric(0),
+                            words = character(0))
 
 #loop through documents
 for (i in 1:length(docs)) {
@@ -29,14 +31,15 @@ for (i in 1:length(docs)) {
   check_sentences <- sentences_to_check$sentid[sentences_to_check$docid == docs[i]]
   
   #heinous function to select sentence and three previous ones for each target sentence
-  sentence_text_new <- sapply(check_sentences, function(x) paste(target_sent[target_sent$sentid %in% seq(ifelse(x-3 > 0, x-3, 1), x), "words"], collapse=""))
+  sentence_text_new <- sapply(check_sentences, function(x) paste(target_sent[target_sent$sentid %in% seq(x, x+3), "words"], collapse=""))
   
   #combine new results with previous ones
-  sentence_text <- c(sentence_text, sentence_text_new)
+  sentence_text_df <- data.frame(docid = docs[i],
+                              sentid = check_sentences,
+                              words = sentence_text_new)
+  
+  sentence_text <- rbind(sentence_text, sentence_text_df)
 }
 
-#add sentences text to 
-sentences_to_check$sentence_text <- sentence_text
 
-write.csv(sentences_to_check, "check_sentences.csv")
- 
+write.csv(sentence_text, "check_sentences.csv")
